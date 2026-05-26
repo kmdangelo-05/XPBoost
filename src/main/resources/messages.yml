@@ -1,0 +1,33 @@
+Lang:
+  action_bar: "&l&2XP BOOST %multiplier%X: &b%remaining_time%&f"
+  not_found_player_message: "&4Il giocatore inserito non è stato trovato&f"
+  confirm_boosters_reset: "&4Sei sicuro di voler resettare i tuoi booster? Scrivi /xpboost reset confirm&f"
+  default_command_message: "&4Comando non trovato&f"
+  incomplete_command_message: "&4Comando incompleto&f"
+  no_args_command_message: "&4Nessun argomento. Usa /xpboost help&f"
+  xp_chat_message: "&3&lHai ottenuto %new_xp% xp invece di %old_xp% xp!&f&r"
+  successfully_added_booster_message: "Il tuo booster %multiplier% di %duration% secondi è stato aggiunto con successo!"
+  successfully_added_booster_message_with_receiver_name: "Il booster %multiplier% di %duration% secondi è stato aggiunto con successo a %receiver_name%!"
+  successfully_removed_booster_message: "Il tuo booster %multiplier% è stato rimosso con successo!"
+  successfully_removed_booster_message_with_receiver_name: "Il booster %multiplier% è stato rimosso con successo da %receiver_name%!"
+  no_booster_found_message: "Il player non ha booster in coda o attivi."
+  modification_occurred_successfully: "&3La modifica è avvenuta con successo!&f"
+  booster_not_found_message: "&4Booster non trovato&f"
+  confirmed_reset_message: "&3Tutti i booster sono stati rimossi!&f"
+  help_command_message: |
+    &8&m                                        &r
+    &6&lXPBoost &7» &fComandi disponibili
+    &8&m                                        &r
+    &a▸ &f/xpboost give &7<moltiplicatore> <durata> [giocatore]
+    &7Assegna un booster e lo attiva subito.
+    &a▸ &f/xpboost add &7<moltiplicatore> <durata> [giocatore]
+    &7Aggiunge un booster in coda senza attivarlo.
+    &a▸ &f/xpboost remove &7<moltiplicatore> [giocatore]
+    &7Rimuove il booster con quel moltiplicatore.
+    &a▸ &f/xpboost reset &7[confirm] [giocatore]
+    &7Azzera tutti i booster di un giocatore.
+    &a▸ &f/xpboost list &7[giocatore]
+    &7Mostra la lista dei booster attivi e in coda.
+    &a▸ &f/xpboost preferences &7[actionbar|xpchatmessage] [true|false]
+    &7Abilita o disabilita le notifiche in actionbar o in chat.
+    &8&m                                        &r

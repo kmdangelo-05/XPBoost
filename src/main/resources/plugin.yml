@@ -1,0 +1,9 @@
+name: XPBoost
+version: '1.0'
+main: me.titanet.kmdangelo.xPBoost.XPBoost
+api-version: '1.21'
+
+commands:
+  xpboost:
+    description: plugin head command
+    usage: /xpboost

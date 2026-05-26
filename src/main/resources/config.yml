@@ -1,0 +1,12 @@
+database:
+  url: 'jdbc:mysql://localhost:3306/XPBoost'
+  username: "root"
+  password: ""
+  character_encoding: "utf8"
+  use_ssl: "false"
+
+  update_every_seconds: 300
+  update_delay_from_server_start: 10
+
+settings:
+  global_xp_multiplier: 2
