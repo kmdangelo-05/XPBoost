@@ -14,9 +14,20 @@ public class PlayerPreferences {
 
     private boolean actionBar;
     private boolean xpChatMessage;
+    private boolean activeBoosters;
 
     public PlayerPreferences() {
         actionBar = true;
         xpChatMessage = true;
+        activeBoosters = true;
+    }
+
+    public boolean toggleBoosters() {
+        if (isActiveBoosters()) {
+            setActiveBoosters(false);
+        } else {
+            setActiveBoosters(true);
+        }
+        return activeBoosters;
     }
 }

@@ -5,6 +5,7 @@ import lombok.Getter;
 import me.titanet.kmdangelo.xPBoost.XPBoost;
 import me.titanet.kmdangelo.xPBoost.boosters.Booster;
 import me.titanet.kmdangelo.xPBoost.boosters.PlayerBooster;
+import me.titanet.kmdangelo.xPBoost.gui.BoosterGui;
 import me.titanet.kmdangelo.xPBoost.utility.Messages;
 import me.titanet.kmdangelo.xPBoost.utility.TimeStamp;
 import org.bukkit.Bukkit;
@@ -17,6 +18,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Getter
@@ -33,119 +35,105 @@ public class PluginCommands implements TabExecutor {
         if (!(sender instanceof Player)) return true;
 
         Player player = (Player) sender;
+        PlayerBooster playerBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId());
+        BoosterGui playerGui = new BoosterGui(plugin, player.getUniqueId());
 
         if (args.length == 0) {
-            Messages.noArgsIntoCommandMessage(plugin, player);
+            Messages.noArgsIntoCommandMessage(player);
             return true;
         }
 
         switch (args[0]) {
-            case "give":
-                final double multiplier;
-                final long lengthInMillis;
-
-                if (args.length <= 2) {
-                    Messages.incompleteCommandMessage(plugin, player);
-                    return true;
-                } else if (args.length == 3) {
-                    multiplier = Double.parseDouble(args[1]);
-                    lengthInMillis = Long.parseLong(args[2]) * 1000;
-                    boolean success = plugin.getBoosterManager().addBooster(player.getUniqueId(), multiplier, lengthInMillis, true);
-                    System.out.println("command addbooster: " + success);
-                    Messages.successfullyAddedBoosterMessage(plugin, player, multiplier, lengthInMillis);
-                    break;
-                } else {
-                    multiplier = Double.parseDouble(args[1]);
-                    lengthInMillis = Long.parseLong(args[2]) * 1000;
-                    Player receiver = plugin.getServer().getPlayer(args[3]);
-                    if (receiver == null) {
-                        Messages.noPlayerFoundMessage(plugin, player);
-                        return true;
-                    }
-                    Messages.successfullyAddedBoosterMessage(plugin, player, multiplier, lengthInMillis, receiver);
-                    plugin.getBoosterManager().addBooster(receiver.getUniqueId(), multiplier, lengthInMillis, true);
-                    break;
-                }
-
             case "add":
+                double multiplier;
+                long lengthInMillis;
+                boolean onlineOnly;
 
-                if (args.length <= 2) {
-                    Messages.incompleteCommandMessage(plugin, player);
+                if (args.length <= 3) {
+                    Messages.incompleteCommandMessage(player);
                     return true;
-                } else if (args.length == 3) {
+                } else if (args.length == 4) {
                     multiplier = Double.parseDouble(args[1]);
-                    lengthInMillis = Long.parseLong(args[2]) * 1000;
+                    lengthInMillis = TimeStamp.fromFormattedToSeconds(args[2]) * 1000;
+                    onlineOnly = Boolean.parseBoolean(args[3]);
 
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getBoosterList().isEmpty()) {
-                        plugin.getBoosterManager().addBooster(player.getUniqueId(), multiplier, lengthInMillis, true);
-                    } else {
-                        plugin.getBoosterManager().addBooster(player.getUniqueId(), multiplier, lengthInMillis, false);
-                    }
+                    playerBooster.addBooster(new Booster(UUID.randomUUID(), multiplier, lengthInMillis, onlineOnly));
 
-                    Messages.successfullyAddedBoosterMessage(plugin, player, multiplier, lengthInMillis);
+                    Messages.successfullyAddedBoosterMessage(player, multiplier, lengthInMillis, player);
                     break;
                 } else {
                     multiplier = Double.parseDouble(args[1]);
-                    lengthInMillis = Long.parseLong(args[2]) * 1000;
-                    Player receiver = plugin.getServer().getPlayer(args[3]);
+                    lengthInMillis = TimeStamp.fromFormattedToSeconds(args[2]) * 1000;
+                    onlineOnly = Boolean.parseBoolean(args[3]);
+                    Player receiver = plugin.getServer().getPlayer(args[4]);
 
                     if (receiver == null) {
-                        Messages.noPlayerFoundMessage(plugin, player);
+                        Messages.noPlayerFoundMessage(player);
                         return true;
                     }
 
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getBoosterList().isEmpty()) {
-                        plugin.getBoosterManager().addBooster(receiver.getUniqueId(), multiplier, lengthInMillis, true);
-                    } else {
-                        plugin.getBoosterManager().addBooster(receiver.getUniqueId(), multiplier, lengthInMillis, false);
-                    }
+                    PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
 
-                    Messages.successfullyAddedBoosterMessage(plugin, player, multiplier, lengthInMillis, receiver);
+                    receiverBooster.addBooster(new Booster(UUID.randomUUID() ,multiplier, lengthInMillis, onlineOnly));
+
+                    Messages.successfullyAddedBoosterMessage(player, multiplier, lengthInMillis, receiver);
                     break;
                 }
 
             case "remove":
                 if (args.length == 1) {
-                    Messages.incompleteCommandMessage(plugin, player);
+                    if (!playerBooster.hasBoosters()) {
+                        Messages.playerHasNoBoostersMessage(player);
+                        return true;
+                    }
+                    playerGui.openRemotionGui();
                     return true;
                 } else if (args.length == 2) {
-                    multiplier = Double.parseDouble(args[1]);
+                    Player receiver = plugin.getServer().getPlayer(args[1]);
 
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getMultiplier(multiplier) == null) {
-                        Messages.boosterNotFoundMessage(plugin, player);
+                    if (receiver == null) {
+                        Messages.noPlayerFoundMessage(player);
                         return true;
                     }
 
-                    plugin.getBoosterManager().getPlayerBoosterMap()
-                            .get(player.getUniqueId())
-                            .removeBooster(multiplier);
-                    Messages.successfullyRemovedBoosterMessage(plugin, player, multiplier);
+                    BoosterGui receiverGui = new BoosterGui(plugin, receiver.getUniqueId());
+                    PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
+
+                    if (!receiverBooster.hasBoosters()) {
+                        Messages.playerHasNoBoostersMessage(player);
+                        return true;
+                    }
+
+                    receiverGui.openRemotionGui(player);
                     return true;
 
                 } else {
-                    multiplier = Double.parseDouble(args[1]);
-                    Player receiver = plugin.getServer().getPlayer(args[2]);
+                    String identifier = args[2];
+                    Player receiver = plugin.getServer().getPlayer(args[1]);
 
                     if (receiver == null) {
-                        Messages.noPlayerFoundMessage(plugin, player);
+                        Messages.noPlayerFoundMessage(player);
                         return true;
                     }
 
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getMultiplier(multiplier) == null) {
-                        Messages.boosterNotFoundMessage(plugin, player);
+                    PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
+
+                    for (Booster booster : receiverBooster.getBoosterList()) {
+                        if (booster.toString().equals(identifier)) {
+                            receiverBooster.removeBooster(booster);
+                            Messages.successfullyRemovedBoosterMessage(player, booster.getMultiplier());
+                            return true;
+                        }
+                        Messages.boosterNotFoundMessage(player);
                         return true;
                     }
 
-                    plugin.getBoosterManager().getPlayerBoosterMap()
-                            .get(receiver.getUniqueId())
-                            .removeBooster(multiplier);
-                    Messages.successfullyRemovedBoosterMessage(plugin, player, multiplier, receiver);
                     return true;
                 }
 
             case "reset":
                 if (args.length == 1) {
-                    Messages.confirmBoosterResetMessage(plugin, player);
+                    Messages.confirmBoosterResetMessage(player);
                     return true;
                 }
 
@@ -153,110 +141,132 @@ public class PluginCommands implements TabExecutor {
 
                     if (args.length == 2) {
 
-                        for (Booster booster : plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getBoosterList()) {
-                            plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getRemovedBooster().add(booster);
-                        }
+                        playerBooster.clearBoosterList();
 
-                        plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getBoosterList().clear();
-                        Messages.confirmedResetMessage(plugin, player);
-
+                        Messages.confirmedResetMessage(player);
 
                     } else {
 
                         Player receiver = plugin.getServer().getPlayer(args[2]);
 
                         if (receiver == null) {
-                            Messages.noPlayerFoundMessage(plugin, player);
+                            Messages.noPlayerFoundMessage(player);
                             return true;
                         }
 
-                        for (Booster booster : plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getBoosterList()) {
-                            plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getRemovedBooster().add(booster);
-                        }
+                        PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
 
-                        plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getBoosterList().clear();
-                        Messages.confirmedResetMessage(plugin, player);
+                        receiverBooster.clearBoosterList();
+
+                        Messages.confirmedResetMessage(player);
+
                     }
                 }
                 break;
 
             case "preferences":
 
+                if (args.length == 1) {
+                    BoosterGui boosterGui = new BoosterGui(plugin, player.getUniqueId());
+                    boosterGui.openPreferences();
+                    return true;
+                }
+
                 if (args.length >= 2) {
                     switch (args[1]) {
-                        case "actionbar":
+                        case "action_bar":
                             if (args.length == 3) {
                                 switch (args[2]) {
                                     case "true":
-                                        plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getPlayerPreferences().setActionBar(true);
-                                        Messages.modificationOccurredSuccessfullyMessage(plugin, player);
+                                        playerBooster.getPlayerPreferences().setActionBar(true);
+                                        Messages.modificationOccurredSuccessfullyMessage(player);
                                         break;
                                     case "false":
-                                        plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getPlayerPreferences().setActionBar(false);
-                                        Messages.modificationOccurredSuccessfullyMessage(plugin, player);
+                                        playerBooster.getPlayerPreferences().setActionBar(false);
+                                        Messages.modificationOccurredSuccessfullyMessage(player);
                                         break;
                                     default:
-                                        Messages.commandNotFoundMessage(plugin, player);
+                                        Messages.commandNotFoundMessage(player);
                                 }
                             }
                             break;
 
-                        case "xpchatmessage":
+                        case "xp_chat_message":
                             if (args.length == 3) {
                                 switch (args[2]) {
                                     case "true":
-                                        plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getPlayerPreferences().setXpChatMessage(true);
-                                        Messages.modificationOccurredSuccessfullyMessage(plugin, player);
+                                        playerBooster.getPlayerPreferences().setXpChatMessage(true);
+                                        Messages.modificationOccurredSuccessfullyMessage(player);
                                         break;
                                     case "false":
-                                        plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getPlayerPreferences().setXpChatMessage(false);
-                                        Messages.modificationOccurredSuccessfullyMessage(plugin, player);
+                                        playerBooster.getPlayerPreferences().setXpChatMessage(false);
+                                        Messages.modificationOccurredSuccessfullyMessage(player);
                                         break;
                                     default:
-                                        Messages.commandNotFoundMessage(plugin, player);
+                                        Messages.commandNotFoundMessage(player);
                                 }
                                 break;
                             }
+                            break;
+                        case "toggle_boosters" :
+                            if (args.length == 3) {
+                                Player receiver = plugin.getServer().getPlayer(args[2]);
+
+                                if (receiver == null) {
+                                    Messages.noPlayerFoundMessage(player);
+                                    return true;
+                                }
+
+                                PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
+
+                                receiverBooster.getPlayerPreferences().toggleBoosters();
+                                Messages.successfullyToggledOthersBoostersMessage(player, receiverBooster.getPlayerPreferences().isActiveBoosters(), receiver);
+                                return true;
+                            }
+                            playerBooster.getPlayerPreferences().toggleBoosters();
+                            Messages.successfullyToggledSelfBoostersMessage(player, playerBooster.getPlayerPreferences().isActiveBoosters());
+                            break;
                         default:
-                            Messages.commandNotFoundMessage(plugin, player);
+                            Messages.commandNotFoundMessage(player);
                             break;
                     }
                 }
                 break;
 
             case "help":
-                Messages.helpCommandMessage(plugin, player);
+                Messages.helpCommandMessage(player);
                 break;
 
             case "list":
                 if (args.length < 2) {
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()) == null) {
-                        Messages.noBoosterFoundMessage(plugin, player);
+                    if (playerBooster == null) {
+                        Messages.playerHasNoBoostersMessage(player);
                         return true;
                     }
-                    sender.sendMessage("Booster list of " + player.getName());
-                    plugin.getBoosterManager().getPlayerBoosterMap().get(player.getUniqueId()).getBoosterList().forEach((booster) -> {
-                        sender.sendMessage("Multiplier: " + booster.getMultiplier() + "; duration: " + TimeStamp.fromSecondsToWeeksDaysHoursMinutesSeconds(booster.getDurationInMillis() / 1000) + "; updated: " + booster.isUpdated());
-                    });
+                    playerGui.openListGui();
                 } else {
                     Player receiver = plugin.getServer().getPlayer(args[1]);
+
                     if (receiver == null) {
-                        Messages.noPlayerFoundMessage(plugin, player);
+                        Messages.noPlayerFoundMessage(player);
                         return true;
                     }
-                    if (plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()) == null) {
-                        Messages.noBoosterFoundMessage(plugin, player);
+
+                    BoosterGui receiverGui = new BoosterGui(plugin, receiver.getUniqueId());
+                    PlayerBooster receiverBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId());
+
+                    if (receiverBooster == null) {
+                        Messages.playerHasNoBoostersMessage(player);
                         return true;
                     }
-                    sender.sendMessage("Booster list of " + receiver.getName());
-                    plugin.getBoosterManager().getPlayerBoosterMap().get(receiver.getUniqueId()).getBoosterList().forEach((booster) -> {
-                        sender.sendMessage("Multiplier: " + booster.getMultiplier() + "; duration: " + TimeStamp.fromSecondsToWeeksDaysHoursMinutesSeconds(booster.getDurationInMillis() / 1000) + '\n');
-                    });
+
+                    receiverGui.openListGui(player);
+
                 }
                 break;
 
             default:
-                Messages.commandNotFoundMessage(plugin, player);
+                Messages.commandNotFoundMessage(player);
 
         }
 
@@ -269,28 +279,21 @@ public class PluginCommands implements TabExecutor {
             @NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String[] args
     ) {
         List<String> completions = new ArrayList<>();
-        List<String> onlinePlayers = Bukkit.getOnlinePlayers().stream()
-                .map(Player::getName)
-                .collect(Collectors.toList());
+        List<String> onlinePlayers = Bukkit.getOnlinePlayers().stream().map(Player::getName).toList();
 
         switch (args.length) {
 
             case 1: // primo argomento — sottocomandi
-                completions.addAll(List.of("give", "add", "remove", "reset", "list", "preferences", "help"));
+                completions.addAll(List.of("add", "remove", "reset", "list", "preferences", "help"));
                 break;
 
             case 2: // secondo argomento — dipende dal sottocomando
                 switch (args[0]) {
-                    case "give":
                     case "add":
-                        completions.add("<moltiplicatore>"); // es. 2.0
+                        completions.add("<multiplier>"); // es. 2.0
                         break;
                     case "remove":
-                        // suggerisci i moltiplicatori dei booster che il player ha già
-                        PlayerBooster pb = plugin.getBoosterManager().getPlayerBoosterMap().get(((Player) sender).getUniqueId());
-                        if (pb != null) {
-                            pb.getBoosterList().forEach(b -> completions.add(String.valueOf(b.getMultiplier())));
-                        }
+                        completions.addAll(onlinePlayers);
                         break;
                     case "reset":
                         completions.add("confirm");
@@ -299,42 +302,53 @@ public class PluginCommands implements TabExecutor {
                         completions.addAll(onlinePlayers);
                         break;
                     case "preferences":
-                        completions.addAll(List.of("actionbar", "xpchatmessage"));
+                        completions.addAll(List.of("action_bar", "xp_chat_message", "toggle_boosters"));
                         break;
                 }
                 break;
 
             case 3: // terzo argomento
                 switch (args[0]) {
-                    case "give":
                     case "add":
-                        completions.add("<durata in secondi>"); // es. 3600
+                        completions.add("<duration>"); // es. 1h30m
                         break;
                     case "remove":
+                        PlayerBooster pb = plugin.getBoosterManager().getPlayerBoosterMap().get(((Player) sender).getUniqueId());
+                        if (pb != null) {
+                            pb.getBoosterList().forEach(b -> completions.add(b.toString()));
+                        }
+                        break;
                     case "reset":
                         completions.addAll(onlinePlayers);
                         break;
                     case "preferences":
-                        completions.addAll(List.of("true", "false"));
+                        if (args[2].equals("toggle_boosters")){
+                            completions.addAll(onlinePlayers);
+                        } else {
+                            completions.addAll(List.of("true", "false"));
+                        }
                         break;
                 }
                 break;
 
             case 4: // quarto argomento — solo per give/add (username opzionale)
                 switch (args[0]) {
-                    case "give":
+                    case "add":
+                        completions.addAll(List.of("true", "false"));
+                        break;
+                }
+                break;
+            case 5:
+                switch (args[0]) {
                     case "add":
                         completions.addAll(onlinePlayers);
-                        break;
                 }
                 break;
         }
 
         // filtra i suggerimenti in base a quello che ha già scritto
         String current = args[args.length - 1].toLowerCase();
-        return completions.stream()
-                .filter(s -> s.toLowerCase().startsWith(current))
-                .collect(Collectors.toList());
+        return completions.stream().filter(s -> s.toLowerCase().startsWith(current)).collect(Collectors.toList());
     }
 
 

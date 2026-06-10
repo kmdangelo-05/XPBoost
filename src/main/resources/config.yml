@@ -10,3 +10,19 @@ database:
 
 settings:
   global_xp_multiplier: 2
+  cumulative_multiplier: true
+  xp_message_delay: 5
+
+  booster_gui_appearance:
+    booster_item_title: "&aBooster %booster_number%"
+    booster_item_lore:
+      - "&bTempo d'acquisto: %starting_time%"
+      - "&bTempo rimanente: %remaining_time%"
+      - "&eMoltiplicatore: %multiplier%"
+    booster_item_lore_online_only_true: "&6Attivo solo online: &a&lVERO"
+    booster_item_lore_online_only_false: "&6Attivo solo online: &4&lFALSO"
+    booster_item_lore_remotion_guide: "&4&lTASTO SINISTRO PER RIMUOVERE IL BOOSTER"
+
+    remotion_gui_title: "&4&lRimuovi booster"
+    list_gui_title: "&3&lI tuoi booster"
+    preferences_gui_title: "&3&lLe tue preferenze"

@@ -1,17 +1,16 @@
 package me.titanet.kmdangelo.xPBoost;
 
-import com.zaxxer.hikari.HikariDataSource;
 import lombok.Getter;
 import me.titanet.kmdangelo.xPBoost.commands.PluginCommands;
-import me.titanet.kmdangelo.xPBoost.database.MySQLDatabaseConnector;
 import me.titanet.kmdangelo.xPBoost.database.MySQLDatabaseService;
-import me.titanet.kmdangelo.xPBoost.boosters.Booster;
+import me.titanet.kmdangelo.xPBoost.gui.GuiType;
+import me.titanet.kmdangelo.xPBoost.listener.BoosterGuiListener;
 import me.titanet.kmdangelo.xPBoost.listener.PlayerJoinOrLeaveServerListener;
 import me.titanet.kmdangelo.xPBoost.listener.XPPickupListener;
 import me.titanet.kmdangelo.xPBoost.manager.BoosterManager;
 import me.titanet.kmdangelo.xPBoost.task.AutoSaveTask;
 import me.titanet.kmdangelo.xPBoost.task.BoosterCheckTask;
-import org.bukkit.Bukkit;
+import me.titanet.kmdangelo.xPBoost.utility.Messages;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -31,7 +30,7 @@ public final class XPBoost extends JavaPlugin {
     @Override
     public void onEnable() {
 
-        this.boosterManager = new BoosterManager();
+        this.boosterManager = new BoosterManager(this);
 
         this.dataService = new MySQLDatabaseService(this);
 
@@ -50,6 +49,7 @@ public final class XPBoost extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new PlayerJoinOrLeaveServerListener(this), this);
         getServer().getPluginManager().registerEvents(new XPPickupListener(this), this);
+        getServer().getPluginManager().registerEvents(new BoosterGuiListener(this), this);
 
         getCommand("xpboost").setExecutor(pluginCommands);
         getCommand("xpboost").setTabCompleter(pluginCommands);
@@ -61,6 +61,9 @@ public final class XPBoost extends JavaPlugin {
         for (Player player : this.getServer().getOnlinePlayers()) {
             boosterManager.loadUser(player.getUniqueId());
         }
+
+        GuiType.init(getConfig());
+        Messages.init(getMessagesConfig());
 
         BoosterCheckTask boosterCheckTask = new BoosterCheckTask(this);
         boosterCheckTask.runTaskTimer(this, 0L, 20L);

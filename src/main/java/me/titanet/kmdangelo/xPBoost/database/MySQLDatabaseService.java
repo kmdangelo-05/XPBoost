@@ -27,25 +27,36 @@ public class MySQLDatabaseService {
 
     @Language("MySQL")
     private static final String CREATE_PLAYER_BOOSTERS_TABLE = """
-        CREATE TABLE IF NOT EXISTS player_boosters (
-            player_uuid       VARCHAR(36)      NOT NULL,
-            multiplier        DOUBLE           NOT NULL,
-            remaining_duration BIGINT UNSIGNED NOT NULL,
-            is_active         TINYINT(1)       NOT NULL DEFAULT 0,
-            created_at        DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (player_uuid, multiplier)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """;
+                CREATE TABLE IF NOT EXISTS player_boosters (
+                    player_uuid       VARCHAR(36)      NOT NULL,
+                    booster_uuid      VARCHAR(36)      NOT NULL,
+                    PRIMARY KEY (booster_uuid)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
+
+    @Language("MySQL")
+    private static final String CREATE_BOOSTERS_TABLE = """
+                CREATE TABLE IF NOT EXISTS boosters (
+                    booster_uuid                VARCHAR(36)         NOT NULL,
+                    multiplier                  DOUBLE              NOT NULL,
+                    remaining_duration          BIGINT UNSIGNED     NOT NULL,
+                    final_time_millis           BIGINT              NOT NULL,
+                    starting_duration_millis    BIGINT              NOT NULL,
+                    online_only                 BOOLEAN             NOT NULL,
+                    PRIMARY KEY (booster_uuid)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
 
     @Language("MySQL")
     private static final String CREATE_PREFERENCES_TABLE = """
-    CREATE TABLE IF NOT EXISTS preferences (
-        player_uuid       VARCHAR(36) NOT NULL,
-        action_bar        BOOLEAN     NOT NULL DEFAULT TRUE,
-        xp_chat_message   BOOLEAN     NOT NULL DEFAULT TRUE,
-        PRIMARY KEY (player_uuid)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-""";
+                CREATE TABLE IF NOT EXISTS preferences (
+                    player_uuid       VARCHAR(36) NOT NULL,
+                    action_bar        BOOLEAN     NOT NULL DEFAULT TRUE,
+                    xp_chat_message   BOOLEAN     NOT NULL DEFAULT TRUE,
+                    active_boosters   BOOLEAN     NOT NULL DEFAULT TRUE,
+                    PRIMARY KEY (player_uuid)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """;
 
     public MySQLDatabaseService(XPBoost javaPlugin) {
         this.plugin = javaPlugin;
@@ -57,83 +68,81 @@ public class MySQLDatabaseService {
 
         try (Connection connection = connector.getConnection();
              PreparedStatement createPlayerBoosters = connection.prepareStatement(CREATE_PLAYER_BOOSTERS_TABLE);
-             PreparedStatement createPreferences = connection.prepareStatement(CREATE_PREFERENCES_TABLE)) {
+             PreparedStatement createPreferences = connection.prepareStatement(CREATE_PREFERENCES_TABLE);
+             PreparedStatement createBoosters = connection.prepareStatement(CREATE_BOOSTERS_TABLE)
+        ) {
             createPlayerBoosters.executeUpdate();
             createPreferences.executeUpdate();
+            createBoosters.executeUpdate();
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    public void insert(UUID playerUuid) {
-        CompletableFuture.runAsync(() -> {
-
-        }, executor);
-    }
-
-    public CompletableFuture<String> getUser(UUID playerUuid) {
-        return CompletableFuture.supplyAsync(() -> {
-            return "ciao";
-        }, executor);
-    }
-
     public CompletableFuture<PlayerBooster> getPlayerBoosters(UUID playerUUID) {
         return CompletableFuture.supplyAsync(() -> {
             List<Booster> boosters = new ArrayList<>();
-            Booster activeBooster = null;
 
-            try (Connection connection = connector.getConnection()) {
-                try (PreparedStatement ps = connection.prepareStatement(Query.GET_PLAYER_BOOSTERS.getQuery()))
-                {
+            try (Connection connection = connector.getConnection();
+                 PreparedStatement playerBoostersStatement = connection.prepareStatement(Query.GET_PLAYER_BOOSTERS.getQuery());
+                 PreparedStatement playerPreferencesStatement = connection.prepareStatement(Query.GET_PLAYER_PREFERNCES.getQuery())) {
 
-                    ps.setString(1, playerUUID.toString());
-                    ResultSet rs = ps.executeQuery();
+                playerBoostersStatement.setString(1, playerUUID.toString());
+                ResultSet rs = playerBoostersStatement.executeQuery();
 
-                    if (rs == null) return null;
+                if (rs == null) return null;
 
-                    while (rs.next()) {
-                        double multiplier = rs.getDouble("multiplier");
-                        long remainingDuration = rs.getLong("remaining_duration");
+                while (rs.next()) {
+                    UUID uuid = UUID.fromString(rs.getString("booster_uuid"));
+                    double multiplier = rs.getDouble("multiplier");
+                    long remainingDuration = rs.getLong("remaining_duration");
+                    long finalTimeMillis = rs.getLong("final_time_millis");
+                    long startingDurationMillis = rs.getLong("starting_duration_millis");
+                    boolean onlineOnly = rs.getBoolean("online_only");
 
-                        Booster booster = new Booster(multiplier, remainingDuration);
+                    Booster booster;
 
-                        if (rs.getBoolean("is_active")) {
-                            activeBooster = booster;
-                        }
-
-                        boosters.add(booster);
-
+                    if (onlineOnly) {
+                        booster = new Booster(uuid ,multiplier, remainingDuration, startingDurationMillis, true);
+                    } else {
+                        if (finalTimeMillis <= System.currentTimeMillis()) continue;
+                        booster = new Booster(uuid,multiplier, finalTimeMillis-System.currentTimeMillis(), startingDurationMillis, false);
                     }
 
-                } catch (SQLException exception) {
-                    plugin.getLogger().severe(exception.getMessage());
-                    return null;
+                    boosters.add(booster);
                 }
 
-                try (PreparedStatement ps = connection.prepareStatement(Query.GET_ALL_PLAYER_PREFERNCES.getQuery())){
+                playerPreferencesStatement.setString(1, playerUUID.toString());
+                rs = playerPreferencesStatement.executeQuery();
 
-                    ps.setString(1, playerUUID.toString());
-                    ResultSet rs = ps.executeQuery();
+                if (rs == null) return null;
 
-                    if (rs == null) return null;
+                PlayerPreferences playerPreferences = new PlayerPreferences();
 
-                    PlayerPreferences playerPreferences = new PlayerPreferences();
+                if (rs.next()) {
+                    boolean actionBar = rs.getBoolean("action_bar");
+                    boolean xpChatMessage = rs.getBoolean("xp_chat_message");
+                    boolean activeBoosters = rs.getBoolean("active_boosters");
 
-                    if (rs.next()) {
-                        boolean actionBar = rs.getBoolean("action_bar");
-                        boolean xpChatMessage = rs.getBoolean("xp_chat_message");
-
-                        playerPreferences = new PlayerPreferences(actionBar, xpChatMessage);
-                    }
-
-                    return new PlayerBooster(playerUUID, boosters, new ArrayList<>(), activeBooster, playerPreferences);
-
+                    playerPreferences = new PlayerPreferences(actionBar, xpChatMessage, activeBoosters);
                 }
+                PlayerBooster playerBooster = new PlayerBooster(playerUUID, boosters, new ArrayList<>(), playerPreferences);
+
+                playerBooster.updateTotalMultiplier();
+                playerBooster.updateLongestDuration();
+
+                return playerBooster;
+
             } catch (SQLException e) {
-                plugin.getLogger().severe(e.getMessage());
+                plugin.getLogger().severe(e.getMessage() + " at getPlayerBoosters");
             }
 
-            return new PlayerBooster(playerUUID, boosters, new ArrayList<>(), activeBooster, new PlayerPreferences());
+            PlayerBooster playerBooster = new PlayerBooster(playerUUID, boosters, new ArrayList<>(), new PlayerPreferences());
+
+            playerBooster.updateTotalMultiplier();
+            playerBooster.updateLongestDuration();
+
+            return playerBooster;
 
         }, executor).exceptionally(e -> {
             plugin.getLogger().severe("Errore getPlayerBoosters: " + e.getMessage());
@@ -145,73 +154,57 @@ public class MySQLDatabaseService {
         Map<UUID, PlayerBooster> playerBoosterMap = plugin.getBoosterManager().getPlayerBoosterMap();
 
         CompletableFuture.runAsync(() -> {
+
             try (Connection connection = connector.getConnection()) {
+
                 connection.setAutoCommit(false);
 
-                try (PreparedStatement ps = connection.prepareStatement(Query.DELETE_BOOSTER.getQuery())
-                ) {
+                try (PreparedStatement insertPlayerBoosterStatement = connection.prepareStatement(Query.INSERT_ALL_PLAYER_BOOSTERS.getQuery());
+                     PreparedStatement deletedPlayerBoosterStatement = connection.prepareStatement(Query.DELETE_PLAYER_BOOSTER.getQuery());
+                     PreparedStatement deletedBoosterStatement = connection.prepareStatement(Query.DELETE_BOOSTER.getQuery());
+                     PreparedStatement insertBoostersStatement = connection.prepareStatement(Query.INSERT_ALL_BOOSTERS.getQuery())) {
+
                     playerBoosterMap.forEach(((uuid, playerBooster) -> {
-
-                        System.out.println("Updating boosters of " + plugin.getServer().getPlayer(uuid));
-
-                        playerBooster.getBoosterList().forEach((booster -> {
-
-                            try {
-
-                                if (booster.isUpdated()) {
-                                    ps.setString(1, uuid.toString());
-                                    ps.setDouble(2, booster.getMultiplier());
-                                    ps.addBatch();
-                                    System.out.println("Batch added of booster " + booster.getMultiplier());
-                                }
-
-                            } catch (SQLException e) {
-                                plugin.getLogger().severe(e.getMessage());
-                            }
-
-                        }));
 
                         playerBooster.getRemovedBooster().forEach((removedBooster -> {
 
                             try {
-                                ps.setString(1, uuid.toString());
-                                ps.setDouble(2, removedBooster.getMultiplier());
-                                ps.addBatch();
-                                System.out.println("Batch added of booster " + removedBooster.getMultiplier()) ;
+                                deletedPlayerBoosterStatement.setString(1, removedBooster.getBoosterUuid().toString());
+                                deletedBoosterStatement.setString(1, removedBooster.getBoosterUuid().toString());
+                                deletedPlayerBoosterStatement.addBatch();
+                                deletedBoosterStatement.addBatch();
                             } catch (SQLException e) {
-                                plugin.getLogger().severe(e.getMessage());
+                                plugin.getLogger().severe(e.getMessage() + " at updatePlayerBoosters");
                             }
 
                         }));
 
                     }));
-                    ps.executeBatch();
+                    deletedPlayerBoosterStatement.executeBatch();
+                    deletedBoosterStatement.executeBatch();
 
                     playerBoosterMap.forEach((uuid, playerBooster) -> {
                         playerBooster.getRemovedBooster().clear();
                     });
 
-                    System.out.println("Batch executed of updatePlayerBoosters");
-                } catch (SQLException e) {
-                    plugin.getLogger().severe(e.getMessage());
-                }
-
-                try (PreparedStatement ps = connection.prepareStatement(Query.INSERT_ALL_PLAYER_BOOSTERS.getQuery())) {
-
                     playerBoosterMap.forEach(((uuid, playerBooster) -> {
-
-                        Booster activeBooster = playerBooster.getActiveBooster();
 
                         playerBooster.getBoosterList().forEach((booster -> {
                             if (booster.isUpdated()) {
                                 try {
-                                    ps.setString(1, uuid.toString());
-                                    ps.setDouble(2, booster.getMultiplier());
-                                    ps.setLong(3, booster.getDurationInMillis());
-                                    ps.setBoolean(4, booster.equals(activeBooster));
-                                    ps.addBatch();
+                                    insertPlayerBoosterStatement.setString(1, uuid.toString());
+                                    insertPlayerBoosterStatement.setString(2, booster.getBoosterUuid().toString());
+                                    insertBoostersStatement.setString(1, booster.getBoosterUuid().toString());
+                                    insertBoostersStatement.setDouble(2, booster.getMultiplier());
+                                    insertBoostersStatement.setLong(3, booster.getDurationInMillis());
+                                    insertBoostersStatement.setLong(4, System.currentTimeMillis() + booster.getDurationInMillis());
+                                    insertBoostersStatement.setLong(5, booster.getStartingDurationInMillis());
+                                    insertBoostersStatement.setBoolean(6, booster.isOnlineOnly());
+
+                                    insertPlayerBoosterStatement.addBatch();
+                                    insertBoostersStatement.addBatch();
                                 } catch (SQLException e) {
-                                    plugin.getLogger().severe(e.getMessage());
+                                    plugin.getLogger().severe(e.getMessage() + " at updatePlayerBoosters");
                                 }
                             }
 
@@ -219,11 +212,10 @@ public class MySQLDatabaseService {
 
                     }));
 
-                    ps.executeBatch();
+                    insertPlayerBoosterStatement.executeBatch();
+                    insertBoostersStatement.executeBatch();
 
                     playerBoosterMap.forEach(((uuid, playerBooster) -> {
-
-                        Booster activeBooster = playerBooster.getActiveBooster();
 
                         playerBooster.getBoosterList().forEach((booster -> {
                             if (booster.isUpdated()) {
@@ -233,15 +225,15 @@ public class MySQLDatabaseService {
                     }));
 
                 } catch (SQLException e) {
-                    plugin.getLogger().severe(e.getMessage());
+                    connection.rollback();
+                    plugin.getLogger().severe(e.getMessage() + " at updatePlayerBoosters");
                 }
 
                 connection.commit();
 
             } catch (SQLException e) {
-                plugin.getLogger().severe(e.getMessage());
+                plugin.getLogger().severe(e.getMessage() + " at updatePlayerBoosters");
             }
-
 
         }, executor).exceptionally(e -> {
             plugin.getLogger().severe("Errore updatePlayerBoosters: " + e.getMessage());
@@ -255,77 +247,70 @@ public class MySQLDatabaseService {
 
         CompletableFuture.supplyAsync(() -> {
             try (Connection connection = connector.getConnection()) {
+
                 connection.setAutoCommit(false);
 
-                try (PreparedStatement ps = connection.prepareStatement(Query.DELETE_BOOSTER.getQuery())
-                ) {
-                    playerBooster.getBoosterList().forEach((booster -> {
-
-                        try {
-
-                            if (booster.isUpdated()) {
-                                ps.setString(1, playerUuid.toString());
-                                ps.setDouble(2, booster.getMultiplier());
-                                ps.addBatch();
-                            }
-
-                        } catch (SQLException e) {
-                            plugin.getLogger().severe(e.getMessage());
-                        }
-
-                    }));
-
+                try (PreparedStatement deletePlayerBoosterStatement = connection.prepareStatement(Query.DELETE_PLAYER_BOOSTER.getQuery());
+                     PreparedStatement deleteBoosterStatement = connection.prepareStatement(Query.DELETE_BOOSTER.getQuery());
+                     PreparedStatement insertPlayerBoostersStatement = connection.prepareStatement(Query.INSERT_ALL_PLAYER_BOOSTERS.getQuery());
+                     PreparedStatement insertBoostersStatement = connection.prepareStatement(Query.INSERT_ALL_BOOSTERS.getQuery());
+                     PreparedStatement insertPreferencesStatement = connection.prepareStatement(Query.INSERT_ALL_PLAYER_PREFERENCES.getQuery()))
+                {
                     playerBooster.getRemovedBooster().forEach((removedBooster -> {
 
                         try {
-                            ps.setString(1, playerUuid.toString());
-                            ps.setDouble(2, removedBooster.getMultiplier());
-                            ps.addBatch();
-                            System.out.println("Batch added of booster " + removedBooster.getMultiplier()) ;
+                            deletePlayerBoosterStatement.setString(1, removedBooster.getBoosterUuid().toString());
+                            deleteBoosterStatement.setString(1, removedBooster.getBoosterUuid().toString());
+                            deletePlayerBoosterStatement.addBatch();
+                            deleteBoosterStatement.addBatch();
                         } catch (SQLException e) {
-                            plugin.getLogger().severe(e.getMessage());
+                            plugin.getLogger().severe(e.getMessage() + " at updatePlayer");
                         }
 
                     }));
 
-                    ps.executeBatch();
-
-                    playerBooster.getRemovedBooster().clear();
-                }
-
-                try (PreparedStatement ps = connection.prepareStatement(Query.INSERT_ALL_PLAYER_BOOSTERS.getQuery())) {
-
-                    Booster activeBooster = playerBooster.getActiveBooster();
+                    deletePlayerBoosterStatement.executeBatch();
+                    deleteBoosterStatement.executeBatch();
 
                     playerBooster.getBoosterList().forEach((booster -> {
                         if (booster.isUpdated()) {
                             try {
-                                ps.setString(1, playerUuid.toString());
-                                ps.setDouble(2, booster.getMultiplier());
-                                ps.setLong(3, booster.getDurationInMillis());
-                                ps.setBoolean(4, booster.equals(activeBooster));
-                                ps.addBatch();
+                                insertPlayerBoostersStatement.setString(1, playerUuid.toString());
+                                insertPlayerBoostersStatement.setString(2, booster.getBoosterUuid().toString());
+                                insertBoostersStatement.setString(1, booster.getBoosterUuid().toString());
+                                insertBoostersStatement.setDouble(2, booster.getMultiplier());
+                                insertBoostersStatement.setLong(3, booster.getDurationInMillis());
+                                insertBoostersStatement.setLong(4, System.currentTimeMillis() + booster.getDurationInMillis());
+                                insertBoostersStatement.setLong(5, booster.getStartingDurationInMillis());
+                                insertBoostersStatement.setBoolean(6, booster.isOnlineOnly());
+                                insertPlayerBoostersStatement.addBatch();
+                                insertBoostersStatement.addBatch();
                             } catch (SQLException e) {
-                                plugin.getLogger().severe(e.getMessage());
+                                plugin.getLogger().severe(e.getMessage() + " at updatePlayer");
                             }
                         }
 
                     }));
 
-                    ps.executeBatch();
-                }
+                    insertPlayerBoostersStatement.executeBatch();
+                    insertBoostersStatement.executeBatch();
 
-                try (PreparedStatement ps = connection.prepareStatement(Query.INSERT_ALL_PLAYER_PREFERENCES.getQuery())) {
-                    ps.setString(1, playerBooster.getPlayerUUID().toString());
-                    ps.setBoolean(2, playerBooster.getPlayerPreferences().isActionBar());
-                    ps.setBoolean(3, playerBooster.getPlayerPreferences().isXpChatMessage());
-                    ps.executeUpdate();
+                    insertPreferencesStatement.setString(1, playerBooster.getPlayerUUID().toString());
+                    insertPreferencesStatement.setBoolean(2, playerBooster.getPlayerPreferences().isActionBar());
+                    insertPreferencesStatement.setBoolean(3, playerBooster.getPlayerPreferences().isXpChatMessage());
+                    insertPreferencesStatement.setBoolean(4, playerBooster.getPlayerPreferences().isActiveBoosters());
+                    insertPreferencesStatement.executeUpdate();
+
+                    playerBooster.getRemovedBooster().clear();
+                } catch (SQLException e) {
+                    connection.rollback();
+                    plugin.getLogger().severe(e.getMessage() + " at updatePlayer");
                 }
 
                 connection.commit();
 
             } catch (SQLException e) {
-                plugin.getLogger().severe(e.getMessage());
+                plugin.getLogger().severe(e.getMessage() + " at updatePlayer");
             }
             return true;
         }, executor).exceptionally(e -> {

@@ -3,7 +3,8 @@ package me.titanet.kmdangelo.xPBoost.listener;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import me.titanet.kmdangelo.xPBoost.XPBoost;
-import me.titanet.kmdangelo.xPBoost.boosters.Booster;
+import me.titanet.kmdangelo.xPBoost.boosters.PlayerBooster;
+import me.titanet.kmdangelo.xPBoost.task.XpChatMessageDelayTask;
 import me.titanet.kmdangelo.xPBoost.utility.Messages;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,19 +23,22 @@ public class XPPickupListener implements Listener {
 
         if (e.getAmount() <= 0) return;
 
-        if (plugin.getBoosterManager().getActiveBooster(e.getPlayer().getUniqueId()) == null) return;
+        PlayerBooster playerBooster = plugin.getBoosterManager().getPlayerBoosterMap().get(e.getPlayer().getUniqueId());
 
-        boolean xpChatMessage = plugin.getBoosterManager().getPlayerBoosterMap().get(e.getPlayer().getUniqueId()).getPlayerPreferences().isXpChatMessage();
-        Booster booster = plugin.getBoosterManager().getActiveBooster(e.getPlayer().getUniqueId());
+        if (!playerBooster.getPlayerPreferences().isActiveBoosters()) return;
 
-        if (booster == null) return;
+        boolean xpChatMessage = playerBooster.getPlayerPreferences().isXpChatMessage();
 
         int xpAmount = e.getAmount();
-        int newAmount = (int) Math.round(xpAmount * booster.getMultiplier() * globalMultiplier);
+        int newAmount = (int) Math.round(xpAmount * (playerBooster.getTotalMultiplier() + globalMultiplier));
         e.setAmount(newAmount);
 
-        if (xpChatMessage) {
-            Messages.xpChatMessage(plugin, e.getPlayer(), xpAmount, newAmount);
+        if (plugin.getBoosterManager().getPlayersWithXpChatMessageDelay().contains(e.getPlayer().getUniqueId())) return;
+
+        if (xpChatMessage && !playerBooster.getBoosterList().isEmpty()) {
+            XpChatMessageDelayTask delay = new XpChatMessageDelayTask(plugin, e.getPlayer().getUniqueId());
+            Messages.xpChatMessage(e.getPlayer(), (int) (xpAmount*globalMultiplier), newAmount);
+            delay.runTaskTimer(plugin, 0L, 20L);
         }
 
     }
