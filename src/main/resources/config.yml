@@ -10,7 +10,6 @@ database:
 
 settings:
   global_xp_multiplier: 2
-  cumulative_multiplier: true
   xp_message_delay: 5
 
   booster_gui_appearance:
